@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import json
 import openpyxl
-import csv
 import matplotlib.pyplot as plt
 from openpyxl.styles import Font, Alignment, Side, Border, PatternFill, numbers
 
@@ -57,56 +56,77 @@ class ResultsPage(tk.Frame):
             messagebox.showerror("Ошибка", f"Не удалось загрузить JSON-файл: {e}")
             return []
 
-    def save_to_csv(self):
-        """Сохраняет данные из JSON в CSV-файл."""
+    def save_to_excel(self):
+        """Сохраняет данные из JSON в Excel с дополнительным листом с общими баллами и средними значениями каждого игрока."""
         try:
-            # Создаем CSV файл для записи
-            with open("game_results.csv", "w", newline="", encoding="utf-8") as csvfile:
-                csvwriter = csv.writer(csvfile)
+            # Создаем новый Excel файл
+            wb = openpyxl.Workbook()
 
-                # Заголовок таблицы 1: Результаты игр
-                csvwriter.writerow(["Номер игры", "Очки игроков"])
+            # Лист 1: Результаты игр (по умолчанию это первый лист)
+            sheet1 = wb.active
+            sheet1.title = "Результаты игр"
 
-                # Записываем данные из JSON
-                for game in self.json_data:
-                    game_number = game.get("game_number")
-                    player_scores = ", ".join(
-                        [f"{player['player_name']}: {player['result']}" for player in game["players"]]
-                    )
-                    csvwriter.writerow([game_number, player_scores])
+            # Добавляем заголовки на первый лист
+            sheet1["A1"] = "Номер игры"
+            sheet1["B1"] = "Очки игроков"
 
-                # Пустая строка для разделения листов
-                csvwriter.writerow([])
+            # Заполняем таблицу данными из JSON
+            row_num = 2
+            for game in self.json_data:
+                game_number = game.get("game_number")
+                player_scores = ", ".join(
+                    [f"{player['player_name']}: {player['result']}" for player in game["players"]])
+                sheet1[f"A{row_num}"] = game_number
+                sheet1[f"B{row_num}"] = player_scores
+                row_num += 1
 
-                # Заголовок таблицы 2: Общий счет и Среднее значение каждого игрока
-                csvwriter.writerow(["Игрок", "Общий счет", "Среднее значение"])
+            # Лист 2: Общий счет и Среднее значение каждого игрока
+            sheet2 = wb.create_sheet(title="Общий счет и Среднее значение")
 
-                # Собираем данные по игрокам
-                player_totals = {}  # Словарь для хранения общего счета каждого игрока
-                player_counts = {}  # Словарь для подсчета количества игр каждого игрока
+            # Заголовки второго листа
+            sheet2["A1"] = "Игрок"
+            sheet2["B1"] = "Общий счет"
+            sheet2["C1"] = "Среднее значение"
 
-                for game in self.json_data:
-                    for player in game["players"]:
-                        player_name = player["player_name"]
-                        score = player["result"]
+            # Собираем данные по игрокам
+            player_totals = {}  # Словарь для хранения общего счета каждого игрока
+            player_counts = {}  # Словарь для подсчета количества игр каждого игрока
 
-                        if player_name not in player_totals:
-                            player_totals[player_name] = 0
-                            player_counts[player_name] = 0
+            # Пройдем по всем играм и соберем информацию по игрокам
+            for game in self.json_data:
+                for player in game["players"]:
+                    player_name = player["player_name"]
+                    score = player["result"]
 
-                        player_totals[player_name] += score
-                        player_counts[player_name] += 1
+                    if player_name not in player_totals:
+                        player_totals[player_name] = 0
+                        player_counts[player_name] = 0
 
-                # Записываем данные о каждом игроке
-                for player_name in player_totals:
-                    total_score = player_totals[player_name]
-                    average_score = total_score / player_counts[player_name]
-                    csvwriter.writerow([player_name, total_score, round(average_score, 2)])
+                    player_totals[player_name] += score
+                    player_counts[player_name] += 1
 
-            # Уведомляем об успешном сохранении
-            messagebox.showinfo("Успех", "Данные успешно сохранены в CSV!")
+            # Заполняем второй лист данными о каждом игроке
+            row_num = 2
+            for player_name in player_totals:
+                total_score = player_totals[player_name]
+                average_score = total_score / player_counts[player_name]
+                sheet2[f"A{row_num}"] = player_name
+                sheet2[f"B{row_num}"] = total_score
+                sheet2[f"C{row_num}"] = round(average_score, 2)  # Округляем среднее до 2 знаков
+                row_num += 1
+
+            # Настройки стилей для обоих листов
+            for sheet in [sheet1, sheet2]:
+                for row in sheet.iter_rows(min_row=1, max_row=1):
+                    for cell in row:
+                        cell.font = Font(bold=True)
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            # Сохраняем файл
+            wb.save("game_results.xlsx")
+            messagebox.showinfo("Успех", "Данные успешно сохранены в Excel!")
         except Exception as e:
-            messagebox.showerror("Ошибка", f"Не удалось сохранить в CSV: {e}")
+            messagebox.showerror("Ошибка", f"Не удалось сохранить в Excel: {e}")
 
     def plot_graph(self):
         """Строит график результатов и сохраняет его в .png."""
